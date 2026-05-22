@@ -44,9 +44,9 @@
 # --- CONFIGURATION ---
 declare -A MESSAGES
 LANG_CHOICE="EN"                # Select language: DE | EN
-OPEN_NEMO=false					# Open target folder when finished
-INTERVAL_TIME_SEC="2"			# Main loop interval time
-DOWNLOAD_DIR="$HOME/Downloads"	# mp3|mp4 download directory
+OPEN_NEMO=false                    # Open target folder when finished
+INTERVAL_TIME_SEC="2"            # Main loop interval time
+DOWNLOAD_DIR="$HOME/Downloads"    # mp3|mp4 download directory
 INSTALL_DIR="$HOME/.local/share/YoutubeClipster"
 YTDLP_BIN="$INSTALL_DIR/yt-dlp"
 USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
@@ -91,7 +91,7 @@ load_language() {
             MESSAGES["download_complete"]="✅ Download abgeschlossen: %s (%s) in %s"
             MESSAGES["download_error"]="❌ Fehler beim Download: %s (%s)"
             MESSAGES["error_bot_detected"]="❌ YouTube hat den Download blockiert (Bot-Erkennung).\n\nBitte erneuere deine IP-Adresse oder warte eine Weile."
-			MESSAGES["error_generic"]="❌ Ein unerwarteter Fehler ist aufgetreten. Prüfe die Konsole für Details."
+            MESSAGES["error_generic"]="❌ Ein unerwarteter Fehler ist aufgetreten. Prüfe die Konsole für Details."
 
             # Zenity dialogs
             MESSAGES["zenity_format_title"]="YouTube Clipster"
@@ -158,8 +158,8 @@ load_language() {
             MESSAGES["download_complete"]="✅ Download complete: %s (%s) in %s"
             MESSAGES["download_error"]="❌ Error during download: %s (%s)"
             MESSAGES["error_bot_detected"]="❌ YouTube blocked the download (Bot detection).\n\nPlease renew your IP address or wait a while."
-			MESSAGES["error_generic"]="❌ An unexpected error occurred. Check the console for details."
-
+            MESSAGES["error_generic"]="❌ An unexpected error occurred. Check the console for details."
+            
             # Zenity dialogs
             MESSAGES["zenity_format_title"]="YouTube Clipster"
             MESSAGES["zenity_format_text_prefix"]="Choose format for:"
@@ -242,7 +242,7 @@ check_and_install() {
 get_clip() {
     local CLIP_DATA
     CLIP_DATA=$( (wl-paste || xclip -o -selection clipboard) 2>/dev/null)
-    echo "$CLIP_DATA" | grep -oE "https://(www\.)?youtube\.com/watch\?v=[a-zA-Z0-9_-]{11}|https://youtu\.be/[a-zA-Z0-9_-]{11}" | head -n 1
+    echo "$CLIP_DATA" | grep -oE "https://(www\.)?youtube\.com/watch\?v=[a-zA-Z0-9_-]{11}|https://youtu.be/[a-zA-Z0-9_-]{11}" | head -n 1
 }
 
 
@@ -321,14 +321,16 @@ echo ""
 echo "${MESSAGES[started]}"
 echo "${MESSAGES[separator]}"
 
-# Update check: Download yt-dlp binary if not present (fallback if pip install failed)
-# Priority: use system yt-dlp if available, otherwise use local binary
-if command -v yt-dlp &>/dev/null; then
-    YTDLP_BIN="yt-dlp"
-elif [[ ! -f "$YTDLP_BIN" ]]; then
-    echo "Downloading yt-dlp binary as fallback..."
+# Update check: Ensure the local standalone binary is used and updated first
+# Priority: Use local binary for easy self-updates, fallback to system if missing
+if [[ ! -f "$YTDLP_BIN" ]]; then
+    echo "Downloading latest yt-dlp binary..."
     curl -L "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" -o "$YTDLP_BIN"
     chmod +x "$YTDLP_BIN"
+else
+    # Automatically update the local binary to stay ahead of YouTube's changes
+    echo "Checking for local yt-dlp updates..."
+    "$YTDLP_BIN" -U &>/dev/null
 fi
 
 # --- MAIN LOOP ---
@@ -336,8 +338,13 @@ while true; do
   sleep "$INTERVAL_TIME_SEC"
   CLIP=$(get_clip)
   
-  # Only process if new link detected
-  if [[ -n "$CLIP" && "$CLIP" != "$LAST_CLIP" && "$CLIP" != "$CANCELED_CLIP" ]]; then
+  # Reset cancel-lock if a different link is found
+  if [[ "$CLIP" != "$CANCELED_CLIP" ]]; then
+      CANCELED_CLIP=""
+  fi
+
+  # Only process if link exists, is not canceled, and is NOT the link we just processed
+  if [[ -n "$CLIP" && "$CLIP" != "$CANCELED_CLIP" && "$CLIP" != "$LAST_CLIP" ]]; then
     echo "$CLIP"
     
     # Show immediate notification that link was detected
@@ -379,11 +386,12 @@ while true; do
     # Abort on ESC or Cancel
     if [[ -z "$FORMAT" ]]; then 
         CANCELED_CLIP="$CLIP"
+        LAST_CLIP="$CLIP"
         continue 
     fi
 
     # --- Audio Language Selection ---
-	AUDIO_LANG=$(zenity --list \
+    AUDIO_LANG=$(zenity --list \
       --title="${MESSAGES[zenity_lang_title]}" \
       --text="${MESSAGES[zenity_lang_text]}\n$SAFE_TITLE" \
       --radiolist \
@@ -404,7 +412,7 @@ while true; do
     # Change to download directory
     cd "$DOWNLOAD_DIR" || exit 1
     
-	# Temporarily file for error messages
+    # Temporarily file for error messages
     ERROR_LOG=$(mktemp)
 
     # Download process with progress display
@@ -437,7 +445,6 @@ while true; do
         
         # Download SUCCEEDED
         if [ "$OPEN_NEMO" = true ]; then nemo "$DOWNLOAD_DIR" & fi
-        LAST_CLIP="$CLIP"
     else
         # Download FAILED
         ERROR_MSG=$(cat "$ERROR_LOG")
@@ -449,11 +456,15 @@ while true; do
                 zenity --error --title="Fehler" --text="${MESSAGES[error_generic]}" --width=400
             fi
         fi
-        # Link trotzdem als "gesehen" markieren, damit die Meldung nicht in Endlosschleife kommt
-        LAST_CLIP="$CLIP"
     fi
 
     rm -f "$ERROR_LOG"
+    # Remember this clip so we don't instantly loop it again
+    LAST_CLIP="$CLIP"
     CANCELED_CLIP=""
+  
+  # If the clipboard content changed away from LAST_CLIP, reset it so we can re-download later if needed
+  elif [[ -n "$CLIP" && "$CLIP" != "$LAST_CLIP" ]]; then
+    LAST_CLIP=""
   fi
 done
