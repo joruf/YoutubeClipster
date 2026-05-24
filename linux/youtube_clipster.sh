@@ -5,466 +5,105 @@
 # Author: Joachim Ruf, Loresoft.de
 # License: GPLv3 — Der Name des Autors muss bei Veröffentlichung und Veränderung genannt werden.
 
-# --- Required ---
-# For X11 Desktop
-# sudo apt update && sudo apt install xclip
-#
-# For Wayland Display Server Protocol
-# sudo apt update && sudo apt install wl-clipboard
-#
-# For "You are not a robot" queries
-# pip install -U yt-dlp
-#
-# For Audio Extraction
-# sudo apt update && sudo apt install ffmpeg
-# 
-# For GUI
-# sudo apt install zenity
+# 1. Load modules & configuration
+BASE_DIR="$(dirname "$(readlink -f "$0")")"
+source "$BASE_DIR/config.cfg"
 
-# --- Distribution Compatibility ---
-# This script is primarily designed for Debian-based Linux distributions
-# due to its reliance on the 'apt' package manager for system dependencies.
-# It should work well on desktop environments of the following:
-#
-# - Ubuntu (and its official flavors like Kubuntu, Xubuntu, Lubuntu, MATE, Budgie)
-# - Linux Mint (Cinnamon, MATE, XFCE editions, and LMDE)
-# - Debian (any desktop installation)
-# - Pop!_OS
-# - Zorin OS
-# - Elementary OS
-# - MX Linux
-# - Kali Linux (though specialized, it's Debian-based)
-# - Parrot OS (also specialized, but Debian-based)
-
-# --- Info ---
-# If too many downloads are performed consecutively, Google often interrupts with a "verify you are not a bot" query.
-# When this message appears, the IP address must be renewed.
-
-
-# --- CONFIGURATION ---
 declare -A MESSAGES
-LANG_CHOICE="EN"                # Select language: DE | EN
-OPEN_NEMO=false                    # Open target folder when finished
-INTERVAL_TIME_SEC="2"            # Main loop interval time
-DOWNLOAD_DIR="$HOME/Downloads"    # mp3|mp4 download directory
-INSTALL_DIR="$HOME/.local/share/YoutubeClipster"
-YTDLP_BIN="$INSTALL_DIR/yt-dlp"
-USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+source "$BASE_DIR/lib/system.sh"
+source "$BASE_DIR/lib/gui.sh"
+source "$BASE_DIR/lib/downloader.sh"
 
-# General
-APP_NAME="LORESOFT YOUTUBE CLIPSTER"
-APP_VERSION="v1.04"
-APP_TITLE="$APP_NAME - $APP_VERSION"
-
-
-# --- LOAD LANGUAGE TEXTS ---
-load_language() {
-    case "$LANG_CHOICE" in
-        DE)
-            # --- GERMAN ---            
-            # Console messages
-            MESSAGES["separator"]="=================================================="
-            MESSAGES["waiting_for_link"]="⌛ Warte auf YouTube-Link in der Zwischenablage..."
-            MESSAGES["started"]="✅ Loresoft Youtube Clipster gestartet. Youtube-Link kopieren um Download zu starten."
-            MESSAGES["interval_label"]="INTERVALL_ZEIT_SEK"
-            MESSAGES["download_dir_label"]="DOWNLOAD_VERZ"
-            MESSAGES["install_dir_label"]="INSTALLATIONS_VERZ"
-            MESSAGES["ytdlp_bin_label"]="YTDLP_BIN"
-            MESSAGES["user_agent_label"]="USER_AGENT"
-            MESSAGES["lang_choice_label"]="SPRACHE"
-            MESSAGES["debug_prefix"]="[DEBUG]"
-            MESSAGES["opening_nemo"]="📂 Öffne Nemo..."
-            MESSAGES["lockfile_removed"]="🔓 Lockfile entfernt."
-            MESSAGES["only_one_instance"]="❌ Das Programm läuft bereits. Nur eine Instanz erlaubt."
-            MESSAGES["orphaned_lock"]="⚠️ Verwaiste Lock-Datei gefunden. Entferne sie..."
-            MESSAGES["lock_created"]="🔒 Lock-Datei erstellt."
-            MESSAGES["install_error"]="❌ Fehler bei der Installation von '%s'.\nDas Programm wird beendet."
-            MESSAGES["zenity_install_error"]="❌ Fehler bei der Installation von 'zenity'. GUI-Meldungen nicht möglich."
-            MESSAGES["python_package_error"]="❌ Fehler bei der Installation von Python-Paket '%s'.\nDas Programm wird beendet."
-            MESSAGES["checking_dependencies"]="🔍 Überprüfe benötigte Programme..."
-            MESSAGES["dependencies_ok"]="✅ Alle benötigten Abhängigkeiten sind installiert."
-            MESSAGES["link_received"]="⬇️ Youtube-Link erhalten, Prozess wird vorbereitet..."
-            MESSAGES["clip_invalid"]="❌ Keine gültige YouTube-Adresse in der Zwischenablage gefunden."
-            MESSAGES["clip_already_canceled"]="⚠️ Dieser Link wurde zuvor abgebrochen."
-            MESSAGES["download_dir_not_found"]="❌ Download-Verzeichnis %s nicht gefunden."
-            MESSAGES["starting_download"]="⬇️ Starte Download als %s: %s"
-            MESSAGES["download_complete"]="✅ Download abgeschlossen: %s (%s) in %s"
-            MESSAGES["download_error"]="❌ Fehler beim Download: %s (%s)"
-            MESSAGES["error_bot_detected"]="❌ YouTube hat den Download blockiert (Bot-Erkennung).\n\nBitte erneuere deine IP-Adresse oder warte eine Weile."
-            MESSAGES["error_generic"]="❌ Ein unerwarteter Fehler ist aufgetreten. Prüfe die Konsole für Details."
-
-            # Zenity dialogs
-            MESSAGES["zenity_format_title"]="YouTube Clipster"
-            MESSAGES["zenity_format_text_prefix"]="Format wählen für:"
-            MESSAGES["zenity_format_col_select"]="Auswahl"
-            MESSAGES["zenity_format_col_format"]="Format"
-            MESSAGES["zenity_format_mp3"]="mp3"
-            MESSAGES["zenity_format_mp4"]="mp4"
-
-            # Audio Language (Neu)
-            MESSAGES["zenity_lang_title"]="Tonspur wählen"
-            MESSAGES["zenity_lang_text"]="Welche Tonspur soll bevorzugt werden?"
-            MESSAGES["lang_de"]="Deutsch (de)"
-            MESSAGES["lang_en"]="Englisch (en)"
-            MESSAGES["lang_best"]="Original / Beste verfügbar"
-
-            MESSAGES["selection_column"]="Auswahl"
-            MESSAGES["format_column"]="Format"
-            MESSAGES["no_format_selected"]="❌ Kein Format ausgewählt. Download abgebrochen."
-            
-            # Progress display
-            MESSAGES["progress_title"]="Loresoft YouTube Clipster"
-            MESSAGES["progress_text_prefix"]="Verarbeite:"
-            MESSAGES["progress_downloading"]="⬇️ Download..."
-            MESSAGES["progress_converting_prefix"]="🔄 Konvertiere zu"
-            MESSAGES["progress_converting_suffix"]="..."
-            MESSAGES["progress_complete_prefix"]="✅ Fertig!"
-            MESSAGES["progress_complete_suffix"]="gespeichert."
-            
-            # Fallback text
-            MESSAGES["fallback_title"]="Video"
-            MESSAGES["unknown_title"]="Unbekannter Titel"
-            MESSAGES["download_title"]="Download: %s"
-            ;;
-            
-        EN)
-            # --- ENGLISH ---            
-            # Console messages
-            MESSAGES["separator"]="=================================================="
-            MESSAGES["waiting_for_link"]="⌛ Waiting for YouTube link in clipboard..."
-            MESSAGES["started"]="✅ Loresoft Youtube Clipster started. Copy YouTube link to start download."
-            MESSAGES["interval_label"]="INTERVAL_TIME_SEC"
-            MESSAGES["download_dir_label"]="DOWNLOAD_DIR"
-            MESSAGES["install_dir_label"]="INSTALL_DIR"
-            MESSAGES["ytdlp_bin_label"]="YTDLP_BIN"
-            MESSAGES["user_agent_label"]="USER_AGENT"
-            MESSAGES["lang_choice_label"]="LANGUAGE"
-            MESSAGES["debug_prefix"]="[DEBUG]"
-            MESSAGES["opening_nemo"]="📂 Opening Nemo..."
-            MESSAGES["lockfile_removed"]="🔓 Lockfile removed."
-            MESSAGES["only_one_instance"]="❌ Program is already running. Only one instance allowed."
-            MESSAGES["orphaned_lock"]="⚠️ Orphaned lock file found. Removing it..."
-            MESSAGES["lock_created"]="🔒 Lock file created."
-            MESSAGES["install_error"]="❌ Error installing '%s'.\nProgram will exit."
-            MESSAGES["zenity_install_error"]="❌ Error installing 'zenity'. GUI messages not possible."
-            MESSAGES["python_package_error"]="❌ Error installing Python package '%s'.\nProgram will exit."
-            MESSAGES["checking_dependencies"]="🔍 Checking required programs..."
-            MESSAGES["dependencies_ok"]="✅ All required dependencies are installed."
-            MESSAGES["link_received"]="⬇️ YouTube link received, process preparing..."
-            MESSAGES["clip_invalid"]="❌ No valid YouTube link found in clipboard."
-            MESSAGES["clip_already_canceled"]="⚠️ This link was previously canceled."
-            MESSAGES["download_dir_not_found"]="❌ Download directory %s not found."
-            MESSAGES["starting_download"]="⬇️ Starting download as %s: %s"
-            MESSAGES["download_complete"]="✅ Download complete: %s (%s) in %s"
-            MESSAGES["download_error"]="❌ Error during download: %s (%s)"
-            MESSAGES["error_bot_detected"]="❌ YouTube blocked the download (Bot detection).\n\nPlease renew your IP address or wait a while."
-            MESSAGES["error_generic"]="❌ An unexpected error occurred. Check the console for details."
-            
-            # Zenity dialogs
-            MESSAGES["zenity_format_title"]="YouTube Clipster"
-            MESSAGES["zenity_format_text_prefix"]="Choose format for:"
-            MESSAGES["zenity_format_col_select"]="Selection"
-            MESSAGES["zenity_format_col_format"]="Format"
-            MESSAGES["zenity_format_mp3"]="mp3"
-            MESSAGES["zenity_format_mp4"]="mp4"
-
-            # Audio Language (Neu)
-            MESSAGES["zenity_lang_title"]="Select Audio Track"
-            MESSAGES["zenity_lang_text"]="Which audio track should be preferred?"
-            MESSAGES["lang_de"]="German (de)"
-            MESSAGES["lang_en"]="English (en)"
-            MESSAGES["lang_best"]="Original / Best available"
-
-            MESSAGES["selection_column"]="Selection"
-            MESSAGES["format_column"]="Format"
-            MESSAGES["no_format_selected"]="❌ No format selected. Download canceled."
-            
-            # Progress display
-            MESSAGES["progress_title"]="Loresoft YouTube Clipster"
-            MESSAGES["progress_text_prefix"]="Processing:"
-            MESSAGES["progress_downloading"]="⬇️ Downloading..."
-            MESSAGES["progress_converting_prefix"]="🔄 Converting to"
-            MESSAGES["progress_converting_suffix"]="..."
-            MESSAGES["progress_complete_prefix"]="✅ Complete!"
-            MESSAGES["progress_complete_suffix"]="saved."
-            
-            # Fallback text
-            MESSAGES["fallback_title"]="Video"
-            MESSAGES["unknown_title"]="Unknown Title"
-            MESSAGES["download_title"]="Download: %s"
-            ;;
-            
-        *)
-            echo "ERROR: Unknown language '$LANG_CHOICE'. Using default (DE)."
-            LANG_CHOICE="DE"
-            load_language
-            return
-            ;;
-    esac
-}
-
-# Cleanup function to remove lockfile
-cleanup_lockfile() {
-    if [ -f "$LOCKFILE" ]; then
-        rm -f "$LOCKFILE"
-        echo "${MESSAGES[lockfile_removed]}"
-    fi
-    # Beendet auch alle Hintergrundprozesse, die vom Skript gestartet wurden
-    kill $(jobs -p) 2>/dev/null
-    exit
-}
-
-# Function to install missing dependencies
-check_and_install() {
-    local cmd="$1"
-    local pkg="$2"
-    local method="$3"   # apt or pip
-    
-    if ! command -v "$cmd" &>/dev/null; then
-        if [[ "$method" == "apt" ]]; then
-            echo "Installing $pkg via apt..."
-            sudo apt update
-            if ! sudo apt install -y "$pkg"; then
-                zenity --error --text="$(printf "${MESSAGES[install_error]}" "$pkg")"
-                exit 1
-            fi
-        elif [[ "$method" == "pip" ]]; then
-            echo "Installing $pkg via pip..."
-            if ! pip install -U "$pkg"; then
-                zenity --error --text="$(printf "${MESSAGES[python_package_error]}" "$pkg")"
-                exit 1
-            fi
-        fi
-    fi
-}
-
-# Robust link detection
-get_clip() {
-    local CLIP_DATA
-    CLIP_DATA=$( (wl-paste || xclip -o -selection clipboard) 2>/dev/null)
-    echo "$CLIP_DATA" | grep -oE "https://(www\.)?youtube\.com/watch\?v=[a-zA-Z0-9_-]{11}|https://youtu.be/[a-zA-Z0-9_-]{11}" | head -n 1
-}
-
-
-
-# --- LOCKFILE MANAGEMENT ---
-# Prevent multiple instances with lockfile
-LOCKFILE="$(pwd)/youtube-clipster.lock"
-
-# Load language
 load_language
 
-# Register cleanup function for all exit scenarios
-# This ensures lockfile removal even on crash, CTRL+C, or abnormal termination
-trap cleanup_lockfile EXIT INT TERM HUP QUIT
-# Extended trap for all common abort signals
-trap cleanup_lockfile SIGINT SIGTERM EXIT SIGHUP
+# 2. System protection rules & environment validation checks
+trap cleanup_lockfile EXIT INT TERM HUP QUIT SIGINT SIGTERM SIGHUP
 
+echo "${MESSAGES[separator]}"
+echo "   $APP_TITLE - Ready for Juniors"
+echo "${MESSAGES[separator]}"
 
-if [ -f "$LOCKFILE" ]; then
-    OLDPID=$(cat "$LOCKFILE")
-    if ps -p "$OLDPID" > /dev/null 2>&1; then
-        echo "${MESSAGES[only_one_instance]} PID: $OLDPID"
-        zenity --error --text="${MESSAGES[only_one_instance]}"
-        exit 1
-    else
-        echo "${MESSAGES[orphaned_lock]}"
-        rm -f "$LOCKFILE"
-    fi
-fi
-
-echo $$ > "$LOCKFILE"
-echo "${MESSAGES[lock_created]}"
-
-# --- CREATE DIRECTORIES ---
+log_message "INFO" "Initializing system components..."
+manage_lockfile
 mkdir -p "$DOWNLOAD_DIR" "$INSTALL_DIR"
 
-# --- DISPLAY VARIABLES (CONSOLE) ---
-echo "${MESSAGES[separator]}"
-echo "   $APP_TITLE"
-echo "${MESSAGES[separator]}"
-echo "${MESSAGES[interval_label]} = $INTERVAL_TIME_SEC"
-echo "${MESSAGES[download_dir_label]}      = $DOWNLOAD_DIR"
-echo "${MESSAGES[install_dir_label]}       = $INSTALL_DIR"
-echo "${MESSAGES[ytdlp_bin_label]}          = $YTDLP_BIN"
-echo "${MESSAGES[user_agent_label]}        = $USER_AGENT"
-echo "${MESSAGES[lang_choice_label]}       = $LANG_CHOICE"
+check_dependencies
+prepare_ytdlp
 
-
-# --- DEPENDENCY CHECK AND AUTO-INSTALL ---
-echo "${MESSAGES[checking_dependencies]}"
-# Check for clipboard tools (Wayland or X11)
-if ! command -v wl-paste &>/dev/null && ! command -v xclip &>/dev/null; then
-    # Detect display server protocol
-    if [[ "$XDG_SESSION_TYPE" == "wayland" ]]; then
-        check_and_install "wl-paste" "wl-clipboard" "apt"
-    else
-        check_and_install "xclip" "xclip" "apt"
-    fi
-fi
-
-# Check for zenity (GUI dialogs)
-check_and_install "zenity" "zenity" "apt"
-
-# Check for ffmpeg (audio/video conversion)
-check_and_install "ffmpeg" "ffmpeg" "apt"
-
-# Check for yt-dlp (YouTube downloader)
-check_and_install "yt-dlp" "yt-dlp" "pip"
-
-
-# --- INITIALIZATION ---
-# Ignore current clipboard content at startup
+# 3. State variable declarations for event loop tracking
 LAST_CLIP=$(get_clip)
 CANCELED_CLIP=""
+
+# Helper function to clear the operating system clipboard (X11 & Wayland)
+clear_clipboard() {
+    log_message "DEBUG" "Clearing system clipboard to prevent loops."
+    if command -v wl-copy &>/dev/null; then
+        wl-copy /dev/null 2>/dev/null
+    fi
+    if command -v xclip &>/dev/null; then
+        echo -n "" | xclip -selection clipboard 2>/dev/null
+    fi
+}
+
+log_message "INFO" "Main event loop started. Monitoring clipboard..."
 echo ""
 echo "${MESSAGES[started]}"
 echo "${MESSAGES[separator]}"
 
-# Update check: Ensure the local standalone binary is used and updated first
-# Priority: Use local binary for easy self-updates, fallback to system if missing
-if [[ ! -f "$YTDLP_BIN" ]]; then
-    echo "Downloading latest yt-dlp binary..."
-    curl -L "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" -o "$YTDLP_BIN"
-    chmod +x "$YTDLP_BIN"
-else
-    # Automatically update the local binary to stay ahead of YouTube's changes
-    echo "Checking for local yt-dlp updates..."
-    "$YTDLP_BIN" -U &>/dev/null
-fi
-
-# --- MAIN LOOP ---
+# 4. Main Event Loop Execution Thread
 while true; do
-  sleep "$INTERVAL_TIME_SEC"
-  CLIP=$(get_clip)
-  
-  # Reset cancel-lock if a different link is found
-  if [[ "$CLIP" != "$CANCELED_CLIP" ]]; then
-      CANCELED_CLIP=""
-  fi
+    sleep "$INTERVAL_TIME_SEC"
+    CLIP=$(get_clip)
+    
+    [[ "$CLIP" != "$CANCELED_CLIP" ]] && CANCELED_CLIP=""
 
-  # Only process if link exists, is not canceled, and is NOT the link we just processed
-  if [[ -n "$CLIP" && "$CLIP" != "$CANCELED_CLIP" && "$CLIP" != "$LAST_CLIP" ]]; then
-    echo "$CLIP"
-    
-    # Show immediate notification that link was detected
-    (
-      echo "0"
-      echo "# ${MESSAGES[link_received]}"
-      
-      # Get video title in background
-      TITLE=$("$YTDLP_BIN" --no-warnings --get-title "$CLIP" 2>/dev/null)
-      SAFE_TITLE=$(echo "${TITLE:-${MESSAGES[fallback_title]}}" | sed 's/[^a-zA-Z0-9._ -]/ /g')
-      
-      echo "100"
-      sleep 0.5
-    ) | zenity --progress \
-      --title="${MESSAGES[progress_title]}" \
-      --text="${MESSAGES[progress_text_prefix]} YouTube Link" \
-      --auto-close \
-      --no-cancel \
-      --width=400 \
-      --pulsate 2>/dev/null
-    
-    # Get video title if not already retrieved
-    if [[ -z "$SAFE_TITLE" ]]; then
-        TITLE=$("$YTDLP_BIN" --no-warnings --get-title "$CLIP" 2>/dev/null)
-        SAFE_TITLE=$(echo "${TITLE:-${MESSAGES[fallback_title]}}" | sed 's/[^a-zA-Z0-9._ -]/ /g')
-    fi
-    
-    # Format selection dialog
-    FORMAT=$(zenity --list \
-      --title="${MESSAGES[zenity_format_title]}" \
-      --text="${MESSAGES[zenity_format_text_prefix]}\n$SAFE_TITLE" \
-      --radiolist \
-      --column="${MESSAGES[zenity_format_col_select]}" \
-      --column="${MESSAGES[zenity_format_col_format]}" \
-      TRUE "${MESSAGES[zenity_format_mp3]}" \
-      FALSE "${MESSAGES[zenity_format_mp4]}" \
-      2>/dev/null)
-    
-    # Abort on ESC or Cancel
-    if [[ -z "$FORMAT" ]]; then 
-        CANCELED_CLIP="$CLIP"
-        LAST_CLIP="$CLIP"
-        continue 
-    fi
-
-    # --- Audio Language Selection ---
-    AUDIO_LANG=$(zenity --list \
-      --title="${MESSAGES[zenity_lang_title]}" \
-      --text="${MESSAGES[zenity_lang_text]}\n$SAFE_TITLE" \
-      --radiolist \
-      --column="${MESSAGES[zenity_format_col_select]}" \
-      --column="Sprache" \
-      FALSE "${MESSAGES[lang_de]}" \
-      FALSE "${MESSAGES[lang_en]}" \
-      TRUE  "${MESSAGES[lang_best]}" \
-      2>/dev/null)
-      
-    # Filter-Logik für yt-dlp vorbereiten
-    case "$AUDIO_LANG" in
-        "${MESSAGES[lang_de]}") LANG_FILTER="[language*=de]" ;;
-        "${MESSAGES[lang_en]}") LANG_FILTER="[language*=en]" ;;
-        *) LANG_FILTER="" ;; 
-    esac
-    
-    # Change to download directory
-    cd "$DOWNLOAD_DIR" || exit 1
-    
-    # Temporarily file for error messages
-    ERROR_LOG=$(mktemp)
-
-    # Download process with progress display
-    if (
-      echo "# ${MESSAGES[progress_downloading]}"
-      echo "5"
-      
-      if [[ "$FORMAT" == "${MESSAGES[zenity_format_mp3]}" ]]; then
-          CMD=("$YTDLP_BIN" "--newline" "--restrict-filenames" "-x" "--audio-format" "mp3" "--audio-quality" "0" "--format" "ba${LANG_FILTER}/ba" "$CLIP")
-      else
-          CMD=("$YTDLP_BIN" "--newline" "--restrict-filenames" "-f" "bv*[ext=mp4]+ba${LANG_FILTER}[ext=m4a]/b[ext=mp4] / bv*+ba/b" "--merge-output-format" "mp4" "$CLIP")
-      fi
-      
-      # Execute download, we pipe stderr to our log file AND keep it for the loop
-      "${CMD[@]}" 2> >(tee "$ERROR_LOG" >&2) | while read -r line; do
-          if [[ "$line" =~ ([0-9.]+)% ]]; then
-              PERCENT=$(echo "${BASH_REMATCH[1]}" | cut -d'.' -f1)
-              if [ "$PERCENT" -lt 99 ]; then echo "$PERCENT"; fi
-          fi
-          
-          if [[ "$line" == *"[ExtractAudio]"* || "$line" == *"[Merger]"* || "$line" == *"[VideoConvertor]"* ]]; then
-              FORMAT_UPPER=$(echo "$FORMAT" | tr '[:lower:]' '[:upper:]')
-              echo "# ${MESSAGES[progress_converting_prefix]} ${FORMAT_UPPER}${MESSAGES[progress_converting_suffix]}"
-              echo "50"
-          fi
-      done
-      echo "100"
-      sleep 1
-    ) | zenity --progress --title="${MESSAGES[progress_title]}" --text="${MESSAGES[progress_text_prefix]} $SAFE_TITLE" --auto-close --width=500; then
+    # Executed whenever a fresh target link is matched inside system contexts
+    if [[ -n "$CLIP" && "$CLIP" != "$CANCELED_CLIP" && "$CLIP" != "$LAST_CLIP" ]]; then
+        log_message "INFO" "* New YouTube link detected in clipboard."
+        log_message "DEBUG" "Target URL: $CLIP"
         
-        # Download SUCCEEDED
-        if [ "$OPEN_NEMO" = true ]; then nemo "$DOWNLOAD_DIR" & fi
-    else
-        # Download FAILED
-        ERROR_MSG=$(cat "$ERROR_LOG")
-        if [[ "$ERROR_MSG" == *"confirm you are not a robot"* || "$ERROR_MSG" == *"429"* ]]; then
-            zenity --error --title="YouTube Blockade" --text="${MESSAGES[error_bot_detected]}" --width=400
-        else
-            # Nur anzeigen, wenn nicht manuell vom User abgebrochen wurde
-            if [[ -n "$ERROR_MSG" ]]; then
-                zenity --error --title="Fehler" --text="${MESSAGES[error_generic]}" --width=400
-            fi
+        show_link_detected_pulsate "${MESSAGES[link_received]}"
+        SAFE_TITLE=$(get_video_title "$CLIP")
+        
+        # Open GUI user dialog choice for destination codec selection
+        FORMAT=$(select_format "$SAFE_TITLE")
+        if [[ -z "$FORMAT" ]]; then 
+            log_message "WARN" "Download canceled by user in format dialog."
+            LAST_CLIP=""
+            CANCELED_CLIP=""
+            clear_clipboard
+            continue 
         fi
-    fi
+        log_message "DEBUG" "User selected format: $FORMAT"
 
-    rm -f "$ERROR_LOG"
-    # Remember this clip so we don't instantly loop it again
-    LAST_CLIP="$CLIP"
-    CANCELED_CLIP=""
-  
-  # If the clipboard content changed away from LAST_CLIP, reset it so we can re-download later if needed
-  elif [[ -n "$CLIP" && "$CLIP" != "$LAST_CLIP" ]]; then
-    LAST_CLIP=""
-  fi
+        # Open GUI user dialog choice for language stream parameters
+        AUDIO_LANG=$(select_audio_lang "$SAFE_TITLE")
+        if [[ -z "$AUDIO_LANG" ]]; then
+            log_message "WARN" "Download canceled by user in language dialog."
+            LAST_CLIP=""
+            CANCELED_CLIP=""
+            clear_clipboard
+            continue
+        fi
+
+        case "$AUDIO_LANG" in
+            "${MESSAGES[lang_de]}") LANG_FILTER="[language*=de]" ;;
+            "${MESSAGES[lang_en]}") LANG_FILTER="[language*=en]" ;;
+            *) LANG_FILTER="" ;; 
+        esac
+        log_message "DEBUG" "User selected audio track: ${AUDIO_LANG:-Default/Best}"
+        
+        # Switch directory targets and trigger downloader execution
+        cd "$DOWNLOAD_DIR" || exit 1
+        run_download "$FORMAT" "$LANG_FILTER" "$CLIP" "$SAFE_TITLE"
+
+        # Flush tracking registers and erase clipboard values globally
+        LAST_CLIP=""
+        CANCELED_CLIP=""
+        clear_clipboard
+      
+    # Reset lock history triggers instantly if context text fields mutate
+    elif [[ -n "$CLIP" && "$CLIP" != "$LAST_CLIP" ]]; then
+        LAST_CLIP=""
+    fi
 done
