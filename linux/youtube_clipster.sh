@@ -11,6 +11,7 @@ source "$BASE_DIR/config.cfg"
 
 declare -A MESSAGES
 source "$BASE_DIR/lib/system.sh"
+source "$BASE_DIR/lib/installer.sh"
 source "$BASE_DIR/lib/gui.sh"
 source "$BASE_DIR/lib/downloader.sh"
 
