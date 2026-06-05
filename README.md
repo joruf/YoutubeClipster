@@ -326,18 +326,10 @@ For issues, questions, or feature requests:
 - Check existing issues for solutions
 
 ---
+## Usage
 
-## Changelog
-
-### Version 1.0
-- Initial release with Linux support
-- Bash script for Debian-based distributions
-- MP3 and MP4 download support
-
-### Version 1.01 (Windows)
-- Added Windows batch script version
-- PowerShell GUI integration
-- Auto-download dependencies
-- Windows autostart support
-- Progress tracking dialog
-
+```bash
+cd YoutubeClipster
+git clone https://github.com/joruf/YoutubeClipster.git
+chmod +x linux/youtube-clipster.py
+./youtube-clipster.py
