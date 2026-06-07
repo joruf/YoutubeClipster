@@ -115,9 +115,10 @@ git clone https://github.com/joruf/youtube-clipster.git
 
 REM Change into the project directory
 cd youtube-clipster
+cd windows
 
 REM Run the batch file
-youtube_clipster.bat
+youtube-clipster.bat
 ```
 
 #### Option 2: Direct Download
