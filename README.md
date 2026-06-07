@@ -96,7 +96,7 @@ Dependencies are downloaded automatically:
 git clone https://github.com/joruf/youtube-clipster.git
 
 # Change into the project directory
-cd youtube-clipster
+cd youtube-clipster/linux
 
 # Make the script executable
 chmod +x youtube-clipster.sh
